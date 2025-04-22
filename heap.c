@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <raylib.h>
+#include <string.h>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 400
+#define WINDOW_WIDTH 1000
+#define WINDOW_HEIGHT 600
 #define MAX_INPUT_CHARS 2
 
 typedef struct {
@@ -12,6 +13,11 @@ typedef struct {
     int capacity;
     int *data;
 } min_heap;
+
+typedef struct {
+    char *text;
+    Vector2 pos;
+} text;
 
 int get_left_child_index(int index) {
     return 2 * index + 1;
@@ -105,17 +111,33 @@ void show_heap(min_heap heap) {
     printf("\n");
 }
 
-void draw_node(Vector2 pos, int value) {
-    DrawCircleV(pos, 20, BLUE);
+Vector2 calculate_center(Rectangle rec, char *text) {
+    int font_size = 40;
+    int text_width = MeasureText(text, font_size);
+    return (Vector2){ 
+        rec.x + (rec.width - text_width) / 2, 
+        rec.y + (rec.height - font_size) / 2 
+    };
+}
+
+void draw_array(int index, int x, Rectangle cell) {
+    if (index >= 10) return;
+    DrawRectangle(x, cell.y, cell.width, cell.height, LIGHTGRAY);
+    DrawRectangleLines(x, cell.y, cell.width, cell.height, BLACK);
+    draw_array(index + 1, x + cell.width, cell);
+}
+
+void output_nums_in_arr(min_heap heap, int index, int x, Rectangle cell) {
+    if (index >= heap.size) return;
     char buffer[10];
-    sprintf(buffer, "%d", value);
-    Vector2 text_size = MeasureTextEx(GetFontDefault(), buffer, 20, 1);
-    DrawText(buffer, pos.x - text_size.x / 2, pos.y - text_size.y / 2, 20, BLACK);
+    sprintf(buffer, "%d", heap.data[index]); 
+    DrawText(buffer, x, cell.y, 40, MAROON);
+    output_nums_in_arr(heap, index + 1, x + cell.width, cell);
 }
 
 void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
     if (index >= heap.size) return;
-    draw_node(pos, heap.data[index]);
+    DrawCircleV(pos, 20, BLUE);
     
     int left_idx = get_left_child_index(index);
     if (left_idx < heap.size) {
@@ -132,33 +154,59 @@ void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
     }
 }
 
-Vector2 calculate_center(Rectangle rec, char *text) {
-    int font_size = 40;
-    int text_width = MeasureText(text, font_size);
-    return (Vector2){ 
-        rec.x + (rec.width - text_width) / 2, 
-        rec.y + (rec.height - font_size) / 2 
-    };
+void heapify(min_heap *heap, int i) {
+    int smallest = i; 
+    int l = get_left_child_index(i); 
+    int r = get_right_child_index(i); 
+
+    if (l < heap->size && heap->data[l] < heap->data[smallest])
+        smallest = l;
+
+    if (r < heap->size && heap->data[r] < heap->data[smallest])
+        smallest = r;
+
+    if (smallest != i) {
+        swap(heap, i, smallest);
+        heapify(heap,smallest);
+    }
+}
+
+void build_heap(min_heap *heap) {
+    for (int i = heap->size/2 - 1; i >= 0; i--) {
+        heapify(heap, i);
+    }
+}
+
+void move_num(text num, Vector2 pos1, Vector2 pos2) {
+    
 }
 
 int main(int argc, char *argv[]) {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heap Simulator");
-    char *num = malloc((MAX_INPUT_CHARS + 1) * sizeof(char));
-    num[0] = '\0';
     int digit_cnt = 0;
+    int frames_cnt = 0;
     bool on_box = false;
-    bool on_btn = false;
+    bool on_btn_add = false;
+    bool on_btn_clear = false;
     Rectangle num_box = { 10.0f, 10.0f, 50, 50 };
+    text num = { malloc((MAX_INPUT_CHARS + 1) * sizeof(char)), (Vector2){ 0 } }; 
+    num.text[0] = '\0';
     Rectangle add_btn = { 60.0f, 10.0f, 50, 50};
+    Rectangle clear_btn = { 110.0f, 10.0f, 50, 50 };
+    Rectangle arr_cell = { 200.0f, 10.0f, 50, 50 };
 
-    min_heap heap = { 0, 4, malloc(sizeof(int) * 4) };
+    int size = 0;
+    int capacity = 4;
+
+    min_heap heap = { size, capacity, malloc(sizeof(int) * capacity) };
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
         Vector2 mouse = GetMousePosition();
         on_box = CheckCollisionPointRec(mouse, num_box);
-        on_btn = CheckCollisionPointRec(mouse, add_btn);
+        on_btn_add = CheckCollisionPointRec(mouse, add_btn);
+        on_btn_clear = CheckCollisionPointRec(mouse, clear_btn);
 
         if (on_box) {
             SetMouseCursor(MOUSE_CURSOR_IBEAM);
@@ -167,9 +215,9 @@ int main(int argc, char *argv[]) {
             while (key > 0) {
                 if ((key >= 48) && (key <= 57)) {
                     if (digit_cnt < MAX_INPUT_CHARS) {
-                        num[digit_cnt] = (char)key;
+                        num.text[digit_cnt] = (char)key;
                         digit_cnt++;
-                        num[digit_cnt] = '\0';
+                        num.text[digit_cnt] = '\0';
                     }
                 }
 
@@ -178,34 +226,49 @@ int main(int argc, char *argv[]) {
 
             if (IsKeyPressed(KEY_BACKSPACE) && digit_cnt > 0) {
                 digit_cnt--;
-                num[digit_cnt] = '\0';
+                num.text[digit_cnt] = '\0';
             }
         } else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 
-        if (on_btn && digit_cnt > 0) {
+        if (on_btn_add && digit_cnt > 0) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                add(&heap, atoi(num));
+                add(&heap, atoi(num.text));
                 digit_cnt = 0;
-                num[0] = '\0';
+                num.text[0] = '\0';
             }
             show_heap(heap);
         }
 
-        
+        if (on_btn_clear && heap.size > 0) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                memset(heap.data, 0, sizeof(int) * capacity);
+                heap.size = 0;
+            }
+        }
+
+        frames_cnt++;
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
         DrawRectangleRec(num_box, LIGHTGRAY);
         DrawRectangleRec(add_btn, LIGHTGRAY);
+        DrawRectangleRec(clear_btn, LIGHTGRAY);
         if (on_box) DrawRectangleLines(num_box.x, num_box.y, num_box.width, num_box.height, RED);
-        if (on_btn) DrawRectangleLines(add_btn.x, add_btn.y, add_btn.width, add_btn.height, BLACK);
-        Vector2 num_pos = calculate_center(num_box, num);
+        if (on_btn_add) DrawRectangleLines(add_btn.x, add_btn.y, add_btn.width, add_btn.height, BLACK);
+        if (on_btn_clear) DrawRectangleLines(clear_btn.x, clear_btn.y, clear_btn.width, clear_btn.height, BLACK);
         Vector2 add_pos = calculate_center(add_btn, "A");
-        DrawText(num, num_pos.x, num_pos.y, 40, MAROON);
+        Vector2 clear_pos = calculate_center(clear_btn, "C");
+        Vector2 num_pos = calculate_center(num_box, num.text);
+        num.pos = num_pos;
+        DrawText(num.text, num.pos.x, num.pos.y, 40, MAROON);
         DrawText("A", add_pos.x, add_pos.y, 40, MAROON);
+        DrawText("C", clear_pos.x, clear_pos.y, 40, MAROON);
 
-        Vector2 start_pos = { WINDOW_WIDTH / 2, 80 };
+        Vector2 start_pos = { WINDOW_WIDTH / 2, 150 };
         draw_recursive(heap, 0, start_pos, 150.0f);
+        draw_array(0, arr_cell.x, arr_cell);
+        output_nums_in_arr(heap, 0, arr_cell.x + 10, arr_cell);
 
         EndDrawing();
     }
