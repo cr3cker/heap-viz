@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -9,9 +10,14 @@
 #define MAX_INPUT_CHARS 2
 
 typedef struct {
+    char value[MAX_INPUT_CHARS];
+    bool in_use;
+} node;
+
+typedef struct {
     int size;
     int capacity;
-    int *data;
+    node *data;
 } min_heap;
 
 typedef struct {
@@ -32,15 +38,15 @@ int get_parent_index(int index) {
 }
 
 int get_left_child_value(min_heap heap, int index) {
-    return heap.data[get_left_child_index(index)];
+    return atoi(heap.data[get_left_child_index(index)].value);
 }
 
 int get_right_child_value(min_heap heap, int index) {
-    return heap.data[get_right_child_index(index)];
+    return atoi(heap.data[get_right_child_index(index)].value);
 }
 
 int get_parent_value(min_heap heap, int index) {
-    return heap.data[get_parent_index(index)];
+    return atoi(heap.data[get_parent_index(index)].value);
 }
 
 bool has_parent(int index) {
@@ -58,19 +64,19 @@ bool has_right_child(int index, min_heap heap) {
 void extra_capacity(min_heap *heap) {
     if (heap->size == heap->capacity) {
         heap->capacity <<= 1;
-        heap->data = realloc(heap->data, heap->capacity * sizeof(int));
+        heap->data = realloc(heap->data, heap->capacity * sizeof(node));
     }
 }
 
 void swap(min_heap *heap, int idx1, int idx2) {
-    int temp = heap->data[idx1];
+    node temp = heap->data[idx1];
     heap->data[idx1] = heap->data[idx2];
     heap->data[idx2] = temp;
 }
 
 void heapify_up(min_heap *heap) {
     int index = heap->size - 1;
-    while (has_parent(index) && heap->data[get_parent_index(index)] > heap->data[index]) {
+    while (has_parent(index) && atoi(heap->data[get_parent_index(index)].value) > atoi(heap->data[index].value)) {
         swap(heap, index, get_parent_index(index));
         index = get_parent_index(index);
     }
@@ -80,24 +86,27 @@ void heapify_down(min_heap *heap) {
     int index = 0;
     while (has_left_child(index, *heap)) {
         int smallest = get_left_child_index(index);
-        if (has_right_child(index, *heap) && get_right_child_value(*heap, index) < heap->data[smallest]) {
+        if (has_right_child(index, *heap) && get_right_child_value(*heap, index) < atoi(heap->data[smallest].value)) {
             smallest = get_right_child_index(index);
         } 
-        if (heap->data[smallest] < heap->data[index]) swap(heap, index, smallest);
-        else break;
+        if (atoi(heap->data[smallest].value) < atoi(heap->data[index].value)) {
+            heap->data[index].in_use = true;
+            heap->data[smallest].in_use = true;
+            swap(heap, index, smallest);
+        } else break;
         index = smallest;
     }
 }
 
-void add(min_heap *heap, int value) {
+void add(min_heap *heap, char value[]) {
     extra_capacity(heap);
     heap->size++;
-    heap->data[heap->size - 1] = value;
+    strcpy(heap->data[heap->size - 1].value, value);
     heapify_up(heap);
 }
 
 int extract_min(min_heap *heap) {
-    int min = heap->data[0];
+    int min = atoi(heap->data->value);
     heap->data[0] = heap->data[heap->size - 1];
     heap->size--;
     heapify_down(heap);
@@ -106,7 +115,7 @@ int extract_min(min_heap *heap) {
 
 void show_heap(min_heap heap) {
     for (int i = 0; i < heap.size; i++) {
-        printf("%d ", heap.data[i]);
+        printf("%c ", heap.data[i].value[0]);
     }
     printf("\n");
 }
@@ -129,10 +138,8 @@ void draw_array(int index, int x, Rectangle cell) {
 
 void output_nums_in_arr(min_heap heap, int index, int x, Rectangle cell) {
     if (index >= heap.size) return;
-    char buffer[10];
-    sprintf(buffer, "%d", heap.data[index]); 
-    Vector2 center = calculate_center(cell, buffer);
-    DrawText(buffer, x, center.y, 40, MAROON);
+    Vector2 center = calculate_center(cell, &heap.data[index].value[0]);
+    DrawText(&heap.data[index].value[0], x, center.y, 40, MAROON);
     output_nums_in_arr(heap, index + 1, x + cell.width, cell);
 }
 
@@ -154,10 +161,9 @@ void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
     }
     
     DrawCircleV(pos, 20, BLUE);
-    char buffer[5];
-    sprintf(buffer, "%d", heap.data[index]);
-    int font_width = MeasureText(buffer, 30);
-    DrawText(buffer, pos.x - font_width / 2.0f, pos.y - 30 / 2.0f, 30, MAROON);
+    if (heap.data[index].in_use) DrawCircleLinesV(pos, 20, RED);
+    int font_width = MeasureText(&heap.data[index].value[0], 30);
+    DrawText(&heap.data[index].value[0], pos.x - font_width / 2.0f, pos.y - 30 / 2.0f, 30, MAROON);
 }
 
 void heapify(min_heap *heap, int i) {
@@ -165,10 +171,10 @@ void heapify(min_heap *heap, int i) {
     int l = get_left_child_index(i); 
     int r = get_right_child_index(i); 
 
-    if (l < heap->size && heap->data[l] < heap->data[smallest])
+    if (l < heap->size && heap->data[l].value - '0' < heap->data[smallest].value - '0')
         smallest = l;
 
-    if (r < heap->size && heap->data[r] < heap->data[smallest])
+    if (r < heap->size && heap->data[r].value - '0' < heap->data[smallest].value - '0')
         smallest = r;
 
     if (smallest != i) {
@@ -198,7 +204,7 @@ int main() {
 
     int size = 0;
     int capacity = 4;
-    min_heap heap = { size, capacity, malloc(sizeof(int) * capacity) };
+    min_heap heap = { size, capacity, malloc(sizeof(node) * capacity) };
 
     SetTargetFPS(60);
 
@@ -232,7 +238,7 @@ int main() {
 
         if (on_btn_add && digit_cnt > 0) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                add(&heap, atoi(num));
+                add(&heap, num);
                 digit_cnt = 0;
                 num[0] = '\0';
             }
@@ -241,7 +247,7 @@ int main() {
 
         if (on_btn_clear && heap.size > 0) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                memset(heap.data, 0, sizeof(int) * capacity);
+                memset(heap.data, 0, sizeof(node) * capacity);
                 heap.size = 0;
             }
         }
@@ -264,7 +270,7 @@ int main() {
         DrawText("A", add_pos.x, add_pos.y, 40, MAROON);
         DrawText("C", clear_pos.x, clear_pos.y, 40, MAROON);
 
-        Vector2 start_pos = { WINDOW_WIDTH / 2, 150 };
+        Vector2 start_pos = { WINDOW_WIDTH / 2.0f, 150 };
         draw_recursive(heap, 0, start_pos, 150.0f);
         draw_array(0, arr_cell.x, arr_cell);
         output_nums_in_arr(heap, 0, arr_cell.x + 15, arr_cell);
