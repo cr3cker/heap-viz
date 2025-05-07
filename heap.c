@@ -12,7 +12,6 @@
 
 typedef struct {
     char value[MAX_INPUT_CHARS];
-    bool in_use;
     Vector2 pos;
     Vector2 target_pos;
 } node;
