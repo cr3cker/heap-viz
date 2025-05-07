@@ -131,13 +131,13 @@ void output_nums_in_arr(min_heap heap, int index, int x, Rectangle cell) {
     if (index >= heap.size) return;
     char buffer[10];
     sprintf(buffer, "%d", heap.data[index]); 
-    DrawText(buffer, x, cell.y, 40, MAROON);
+    Vector2 center = calculate_center(cell, buffer);
+    DrawText(buffer, x, center.y, 40, MAROON);
     output_nums_in_arr(heap, index + 1, x + cell.width, cell);
 }
 
 void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
     if (index >= heap.size) return;
-    DrawCircleV(pos, 20, BLUE);
     
     int left_idx = get_left_child_index(index);
     if (left_idx < heap.size) {
@@ -152,6 +152,12 @@ void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
         DrawLineV(pos, right_pos, BLACK);
         draw_recursive(heap, right_idx, right_pos, spacing * 0.5f);
     }
+    
+    DrawCircleV(pos, 20, BLUE);
+    char buffer[5];
+    sprintf(buffer, "%d", heap.data[index]);
+    int font_width = MeasureText(buffer, 30);
+    DrawText(buffer, pos.x - font_width / 2.0f, pos.y - 30 / 2.0f, 30, MAROON);
 }
 
 void heapify(min_heap *heap, int i) {
@@ -177,11 +183,7 @@ void build_heap(min_heap *heap) {
     }
 }
 
-void move_num(text num, Vector2 pos1, Vector2 pos2) {
-    
-}
-
-int main(int argc, char *argv[]) {
+int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heap Simulator");
     int digit_cnt = 0;
     int frames_cnt = 0;
@@ -189,15 +191,13 @@ int main(int argc, char *argv[]) {
     bool on_btn_add = false;
     bool on_btn_clear = false;
     Rectangle num_box = { 10.0f, 10.0f, 50, 50 };
-    text num = { malloc((MAX_INPUT_CHARS + 1) * sizeof(char)), (Vector2){ 0 } }; 
-    num.text[0] = '\0';
     Rectangle add_btn = { 60.0f, 10.0f, 50, 50};
     Rectangle clear_btn = { 110.0f, 10.0f, 50, 50 };
     Rectangle arr_cell = { 200.0f, 10.0f, 50, 50 };
+    char num[MAX_INPUT_CHARS] = "\0";
 
     int size = 0;
     int capacity = 4;
-
     min_heap heap = { size, capacity, malloc(sizeof(int) * capacity) };
 
     SetTargetFPS(60);
@@ -215,9 +215,9 @@ int main(int argc, char *argv[]) {
             while (key > 0) {
                 if ((key >= 48) && (key <= 57)) {
                     if (digit_cnt < MAX_INPUT_CHARS) {
-                        num.text[digit_cnt] = (char)key;
+                        num[digit_cnt] = (char)key;
                         digit_cnt++;
-                        num.text[digit_cnt] = '\0';
+                        num[digit_cnt] = '\0';
                     }
                 }
 
@@ -226,15 +226,15 @@ int main(int argc, char *argv[]) {
 
             if (IsKeyPressed(KEY_BACKSPACE) && digit_cnt > 0) {
                 digit_cnt--;
-                num.text[digit_cnt] = '\0';
+                num[digit_cnt] = '\0';
             }
         } else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 
         if (on_btn_add && digit_cnt > 0) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                add(&heap, atoi(num.text));
+                add(&heap, atoi(num));
                 digit_cnt = 0;
-                num.text[0] = '\0';
+                num[0] = '\0';
             }
             show_heap(heap);
         }
@@ -259,20 +259,18 @@ int main(int argc, char *argv[]) {
         if (on_btn_clear) DrawRectangleLines(clear_btn.x, clear_btn.y, clear_btn.width, clear_btn.height, BLACK);
         Vector2 add_pos = calculate_center(add_btn, "A");
         Vector2 clear_pos = calculate_center(clear_btn, "C");
-        Vector2 num_pos = calculate_center(num_box, num.text);
-        num.pos = num_pos;
-        DrawText(num.text, num.pos.x, num.pos.y, 40, MAROON);
+        Vector2 num_pos = calculate_center(num_box, num);
+        DrawText(num, num_pos.x, num_pos.y, 40, MAROON);
         DrawText("A", add_pos.x, add_pos.y, 40, MAROON);
         DrawText("C", clear_pos.x, clear_pos.y, 40, MAROON);
 
         Vector2 start_pos = { WINDOW_WIDTH / 2, 150 };
         draw_recursive(heap, 0, start_pos, 150.0f);
         draw_array(0, arr_cell.x, arr_cell);
-        output_nums_in_arr(heap, 0, arr_cell.x + 10, arr_cell);
+        output_nums_in_arr(heap, 0, arr_cell.x + 15, arr_cell);
 
         EndDrawing();
     }
-
     free(heap.data);
     CloseWindow();
 
