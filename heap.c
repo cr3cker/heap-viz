@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <raylib.h>
 #include <string.h>
+#include <math.h>
 
 #define WINDOW_WIDTH 1000
 #define WINDOW_HEIGHT 600
@@ -12,6 +13,8 @@
 typedef struct {
     char value[MAX_INPUT_CHARS];
     bool in_use;
+    Vector2 pos;
+    Vector2 target_pos;
 } node;
 
 typedef struct {
@@ -90,8 +93,6 @@ void heapify_down(min_heap *heap) {
             smallest = get_right_child_index(index);
         } 
         if (atoi(heap->data[smallest].value) < atoi(heap->data[index].value)) {
-            heap->data[index].in_use = true;
-            heap->data[smallest].in_use = true;
             swap(heap, index, smallest);
         } else break;
         index = smallest;
@@ -143,28 +144,61 @@ void output_nums_in_arr(min_heap heap, int index, int x, Rectangle cell) {
     output_nums_in_arr(heap, index + 1, x + cell.width, cell);
 }
 
-void draw_recursive(min_heap heap, int index, Vector2 pos, float spacing) {
-    if (index >= heap.size) return;
-    
+void update_node_positions(min_heap *heap, int index, Vector2 pos, float spacing) {
+    if (index >= heap->size) return;
+
+    heap->data[index].target_pos = pos;
+
     int left_idx = get_left_child_index(index);
-    if (left_idx < heap.size) {
+    if (left_idx < heap->size) {
         Vector2 left_pos = { pos.x - spacing, pos.y + 60 };
-        DrawLineV(pos, left_pos, BLACK);
-        draw_recursive(heap, left_idx, left_pos, spacing * 0.5f);
+        update_node_positions(heap, left_idx, left_pos, spacing * 0.5f);
     }
 
     int right_idx = get_right_child_index(index);
-    if (right_idx < heap.size) {
+    if (right_idx < heap->size) {
         Vector2 right_pos = { pos.x + spacing, pos.y + 60 };
-        DrawLineV(pos, right_pos, BLACK);
-        draw_recursive(heap, right_idx, right_pos, spacing * 0.5f);
+        update_node_positions(heap, right_idx, right_pos, spacing * 0.5f);
     }
-    
-    DrawCircleV(pos, 20, BLUE);
-    if (heap.data[index].in_use) DrawCircleLinesV(pos, 20, RED);
-    int font_width = MeasureText(&heap.data[index].value[0], 30);
-    DrawText(&heap.data[index].value[0], pos.x - font_width / 2.0f, pos.y - 30 / 2.0f, 30, MAROON);
 }
+
+void draw_heap_nodes(min_heap heap) {
+    for (int i = 0; i < heap.size; i++) {
+        Vector2 pos = heap.data[i].pos;
+
+        if (has_left_child(i, heap)) {
+            DrawLineV(pos, heap.data[get_left_child_index(i)].pos, BLACK);
+        }
+
+        if (has_right_child(i, heap)) {
+            DrawLineV(pos, heap.data[get_right_child_index(i)].pos, BLACK);
+        }
+
+        DrawCircleV(pos, 20, BLUE);
+        if (heap.data[i].in_use) DrawCircleLinesV(pos, 20, RED);
+
+        int font_width = MeasureText(heap.data[i].value, 30);
+        DrawText(heap.data[i].value, pos.x - font_width / 2.0f, pos.y - 15, 30, MAROON);
+    }
+}
+
+void animate_node_positions(min_heap *heap) {
+    const float speed = 5.0f; 
+    for (int i = 0; i < heap->size; i++) {
+        Vector2 *p = &heap->data[i].pos;
+        Vector2 t = heap->data[i].target_pos;
+
+        float dx = t.x - p->x;
+        float dy = t.y - p->y;
+
+        if (fabsf(dx) > 0.1f) p->x += dx / speed;
+        else p->x = t.x;
+
+        if (fabsf(dy) > 0.1f) p->y += dy / speed;
+        else p->y = t.y;
+    }
+}
+
 
 void heapify(min_heap *heap, int i) {
     int smallest = i; 
@@ -271,7 +305,9 @@ int main() {
         DrawText("C", clear_pos.x, clear_pos.y, 40, MAROON);
 
         Vector2 start_pos = { WINDOW_WIDTH / 2.0f, 150 };
-        draw_recursive(heap, 0, start_pos, 150.0f);
+        update_node_positions(&heap, 0, start_pos, 150);
+        animate_node_positions(&heap);
+        draw_heap_nodes(heap);
         draw_array(0, arr_cell.x, arr_cell);
         output_nums_in_arr(heap, 0, arr_cell.x + 15, arr_cell);
 
