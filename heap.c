@@ -1,5 +1,4 @@
 #include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <raylib.h>
@@ -9,6 +8,8 @@
 #define WINDOW_WIDTH 1000
 #define WINDOW_HEIGHT 600
 #define MAX_INPUT_CHARS 2
+#define RECTANGLES_SIZE 50
+#define RECTANGLE_FONT_SIZE 40
 
 typedef struct {
     char value[MAX_INPUT_CHARS];
@@ -63,13 +64,6 @@ bool has_right_child(int index, min_heap heap) {
     return get_right_child_index(index) < heap.size;
 }
 
-void extra_capacity(min_heap *heap) {
-    if (heap->size == heap->capacity) {
-        heap->capacity <<= 1;
-        heap->data = realloc(heap->data, heap->capacity * sizeof(node));
-    }
-}
-
 void swap(min_heap *heap, int idx1, int idx2) {
     node temp = heap->data[idx1];
     heap->data[idx1] = heap->data[idx2];
@@ -98,11 +92,24 @@ void heapify_down(min_heap *heap) {
     }
 }
 
-void add(min_heap *heap, char value[]) {
-    extra_capacity(heap);
-    heap->size++;
-    strcpy(heap->data[heap->size - 1].value, value);
-    heapify_up(heap);
+Vector2 calculate_center(Rectangle rec, char *text) {
+    int text_width = MeasureText(text, RECTANGLE_FONT_SIZE);
+    return (Vector2){ 
+        rec.x + (rec.width - text_width) / 2, 
+        rec.y + (rec.height - RECTANGLE_FONT_SIZE) / 2 
+    };
+}
+
+void add(min_heap *heap, char value[], Rectangle num_box) {
+    if (heap->size < heap->capacity) {
+        heap->size++;
+        int index = heap->size - 1;
+        strcpy(heap->data[index].value, value);
+        Vector2 center = calculate_center(num_box, heap->data[index].value);
+        heap->data[index].pos = center; 
+        heap->data[index].target_pos = heap->data[index].pos;
+        heapify_up(heap);
+    }
 }
 
 int extract_min(min_heap *heap) {
@@ -111,22 +118,6 @@ int extract_min(min_heap *heap) {
     heap->size--;
     heapify_down(heap);
     return min;
-}
-
-void show_heap(min_heap heap) {
-    for (int i = 0; i < heap.size; i++) {
-        printf("%c ", heap.data[i].value[0]);
-    }
-    printf("\n");
-}
-
-Vector2 calculate_center(Rectangle rec, char *text) {
-    int font_size = 40;
-    int text_width = MeasureText(text, font_size);
-    return (Vector2){ 
-        rec.x + (rec.width - text_width) / 2, 
-        rec.y + (rec.height - font_size) / 2 
-    };
 }
 
 void draw_array(int index, int x, Rectangle cell) {
@@ -139,7 +130,7 @@ void draw_array(int index, int x, Rectangle cell) {
 void output_nums_in_arr(min_heap heap, int index, int x, Rectangle cell) {
     if (index >= heap.size) return;
     Vector2 center = calculate_center(cell, &heap.data[index].value[0]);
-    DrawText(&heap.data[index].value[0], x, center.y, 40, MAROON);
+    DrawText(&heap.data[index].value[0], x, center.y, RECTANGLE_FONT_SIZE, MAROON);
     output_nums_in_arr(heap, index + 1, x + cell.width, cell);
 }
 
@@ -173,10 +164,8 @@ void draw_heap_nodes(min_heap heap) {
             DrawLineV(pos, heap.data[get_right_child_index(i)].pos, BLACK);
         }
 
-        DrawCircleV(pos, 20, BLUE);
-        if (heap.data[i].in_use) DrawCircleLinesV(pos, 20, RED);
-
         int font_width = MeasureText(heap.data[i].value, 30);
+        DrawCircleV(pos, 20, BLUE);
         DrawText(heap.data[i].value, pos.x - font_width / 2.0f, pos.y - 15, 30, MAROON);
     }
 }
@@ -198,30 +187,6 @@ void animate_node_positions(min_heap *heap) {
     }
 }
 
-
-void heapify(min_heap *heap, int i) {
-    int smallest = i; 
-    int l = get_left_child_index(i); 
-    int r = get_right_child_index(i); 
-
-    if (l < heap->size && heap->data[l].value - '0' < heap->data[smallest].value - '0')
-        smallest = l;
-
-    if (r < heap->size && heap->data[r].value - '0' < heap->data[smallest].value - '0')
-        smallest = r;
-
-    if (smallest != i) {
-        swap(heap, i, smallest);
-        heapify(heap,smallest);
-    }
-}
-
-void build_heap(min_heap *heap) {
-    for (int i = heap->size/2 - 1; i >= 0; i--) {
-        heapify(heap, i);
-    }
-}
-
 int main() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heap Simulator");
     int digit_cnt = 0;
@@ -229,14 +194,14 @@ int main() {
     bool on_box = false;
     bool on_btn_add = false;
     bool on_btn_clear = false;
-    Rectangle num_box = { 10.0f, 10.0f, 50, 50 };
-    Rectangle add_btn = { 60.0f, 10.0f, 50, 50};
-    Rectangle clear_btn = { 110.0f, 10.0f, 50, 50 };
-    Rectangle arr_cell = { 200.0f, 10.0f, 50, 50 };
+    Rectangle num_box = { 10.0f, 10.0f, RECTANGLES_SIZE, RECTANGLES_SIZE };
+    Rectangle add_btn = { 60.0f, 10.0f, RECTANGLES_SIZE, RECTANGLES_SIZE };
+    Rectangle clear_btn = { 110.0f, 10.0f, RECTANGLES_SIZE, RECTANGLES_SIZE };
+    Rectangle arr_cell = { 200.0f, 10.0f, RECTANGLES_SIZE, RECTANGLES_SIZE };
     char num[MAX_INPUT_CHARS] = "\0";
 
     int size = 0;
-    int capacity = 4;
+    int capacity = 10;
     min_heap heap = { size, capacity, malloc(sizeof(node) * capacity) };
 
     SetTargetFPS(60);
@@ -271,11 +236,10 @@ int main() {
 
         if (on_btn_add && digit_cnt > 0) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                add(&heap, num);
+                add(&heap, num, num_box);
                 digit_cnt = 0;
                 num[0] = '\0';
             }
-            show_heap(heap);
         }
 
         if (on_btn_clear && heap.size > 0) {
@@ -299,9 +263,9 @@ int main() {
         Vector2 add_pos = calculate_center(add_btn, "A");
         Vector2 clear_pos = calculate_center(clear_btn, "C");
         Vector2 num_pos = calculate_center(num_box, num);
-        DrawText(num, num_pos.x, num_pos.y, 40, MAROON);
-        DrawText("A", add_pos.x, add_pos.y, 40, MAROON);
-        DrawText("C", clear_pos.x, clear_pos.y, 40, MAROON);
+        DrawText(num, num_pos.x, num_pos.y, RECTANGLE_FONT_SIZE, MAROON);
+        DrawText("A", add_pos.x, add_pos.y, RECTANGLE_FONT_SIZE, MAROON);
+        DrawText("C", clear_pos.x, clear_pos.y, RECTANGLE_FONT_SIZE, MAROON);
 
         Vector2 start_pos = { WINDOW_WIDTH / 2.0f, 150 };
         update_node_positions(&heap, 0, start_pos, 150);
